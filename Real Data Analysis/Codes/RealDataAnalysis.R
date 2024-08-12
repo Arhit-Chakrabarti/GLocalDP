@@ -914,6 +914,47 @@ library(mcclust.ext)
 sim_mat = comp.psm(posterior_samples)
 par(mfrow = c(1, 1))
 plotpsm(sim_mat)
+
+reorder_dismat <-  function(dismat, groups, order.groups=NULL){
+  # Use correlation between variables as distance
+  order.dis   = integer(0)
+  J           = length(unique(groups))
+  if(is.null(order.groups)){
+    order.j   = 1:J
+  } else {
+    order.j   = order.groups
+  }
+  for (j in order.j){
+    groups.j  = which(groups==j)
+    dd        = as.dist((1-dismat[groups.j, groups.j])/2)
+    hc        = hclust(dd)
+    order.dis = c(order.dis, hc$order+length(order.dis))
+  }
+  dismat      = dismat[order.dis, order.dis]
+  dismat      = dismat[nrow(dismat):1,]
+}
+
+dissimlar_stable = sim_mat; N_S_map = ncol(sim_mat)
+library(scales)
+library(tidyverse)
+library(reshape2)
+dismat      = round(dissimlar_stable, 2)
+dismat      = reorder_dismat(dismat,groups=rep(1, N_S_map))
+plot_dismat = reshape2::melt(dismat)
+
+ggplot(data=plot_dismat, aes(x=factor(Var1), y=factor(Var2), fill=value))+ 
+  geom_tile() + theme_bw()+ 
+  scale_y_discrete(limits = seq(N_S_map, 1),
+                   breaks = floor(seq(1,N_S_map,length.out = 9)), 
+                   labels = floor(seq(1,N_S_map,length.out = 9))) +
+  scale_x_discrete(breaks = floor(seq(1,N_S_map,length.out = 9)), 
+                   labels = floor(seq(1,N_S_map,length.out = 9))) +
+  xlab("observation")+ylab("observation")+
+  scale_fill_gradientn(colours = c("white", "yellow", "red"), 
+                       values = rescale(c(0,0.25,1)), space = "Lab", name="")+
+  theme(legend.position = "right", text = element_text(size=20))
+
+
 ###############################################################
 # Some Pre-processing before plotting the estimated clustering
 ###############################################################
@@ -1031,6 +1072,25 @@ sim_mat = comp.psm(posterior_samples)
 par(mfrow = c(1, 1))
 plotpsm(sim_mat)
 
+dissimlar_stable = sim_mat; N_S_map = ncol(sim_mat)
+library(scales)
+library(tidyverse)
+dismat      = round(dissimlar_stable, 2)
+dismat      = reorder_dismat(dismat,groups=rep(1, N_S_map))
+plot_dismat = reshape2::melt(dismat)
+
+ggplot(data=plot_dismat, aes(x=factor(Var1), y=factor(Var2), fill=value))+ 
+  geom_tile() + theme_bw()+ 
+  scale_y_discrete(limits = seq(N_S_map, 1),
+                   breaks = floor(seq(1,N_S_map,length.out = 9)), 
+                   labels = floor(seq(1,N_S_map,length.out = 9))) +
+  scale_x_discrete(breaks = floor(seq(1,N_S_map,length.out = 9)), 
+                   labels = floor(seq(1,N_S_map,length.out = 9))) +
+  xlab("observation")+ylab("observation")+
+  scale_fill_gradientn(colours = c("white", "yellow", "red"), 
+                       values = rescale(c(0,0.25,1)), space = "Lab", name="")+
+  theme(legend.position = "right", text = element_text(size=20))
+
 k2.rand = getDahl(index[samples],
                   NULL)
 best.index = samples[k2.rand$DahlIndex]
@@ -1067,6 +1127,25 @@ library(mcclust.ext)
 sim_mat = comp.psm(posterior_samples)
 par(mfrow = c(1, 1))
 plotpsm(sim_mat)
+
+dissimlar_stable = sim_mat; N_S_map = ncol(sim_mat)
+library(scales)
+library(tidyverse)
+dismat      = round(dissimlar_stable, 2)
+dismat      = reorder_dismat(dismat,groups=rep(1, N_S_map))
+plot_dismat = reshape2::melt(dismat)
+
+ggplot(data=plot_dismat, aes(x=factor(Var1), y=factor(Var2), fill=value))+ 
+  geom_tile() + theme_bw()+ 
+  scale_y_discrete(limits = seq(N_S_map, 1),
+                   breaks = floor(seq(1,N_S_map,length.out = 9)), 
+                   labels = floor(seq(1,N_S_map,length.out = 9))) +
+  scale_x_discrete(breaks = floor(seq(1,N_S_map,length.out = 9)), 
+                   labels = floor(seq(1,N_S_map,length.out = 9))) +
+  xlab("observation")+ylab("observation")+
+  scale_fill_gradientn(colours = c("white", "yellow", "red"), 
+                       values = rescale(c(0,0.25,1)), space = "Lab", name="")+
+  theme(legend.position = "right", text = element_text(size=20))
 
 k3.rand = getDahl(index[samples],
                   NULL)
