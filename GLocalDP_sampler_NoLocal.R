@@ -281,7 +281,7 @@ for(iter in 2:num_iter){
   x.j.bar.local = replicate(n = 3, list())
   
   for(t in 1:L){
-   x.j.bar.local[[1]][[t]] = 0
+    x.j.bar.local[[1]][[t]] = 0
   }
   
   for(t in 1:L){
@@ -347,7 +347,7 @@ for(iter in 2:num_iter){
   
   tau2.j.samples <- list(matrix(0, nrow = nrow(X.local.matrix[[1]]), ncol = L),
                          matrix(0, nrow = nrow(X.local.matrix[[2]]), ncol = L))
-
+  
   for(i in 1:nrow(alpha.2.hat)){
     tau2.j.samples[[1]][i, ] = rinvgamma(n = L, alpha = alpha.2.hat[i, ], beta = beta.2.hat[i, ])
     m.j.samples[[1]][i, ] = rnorm(n = L, mean = m.2.hat[i, ], sd = sqrt(tau2.j.samples[[2]][i,] /lambda.2.hat[i,]))
@@ -394,7 +394,7 @@ for(iter in 2:num_iter){
                                          X_global = t(X.global[[1]]), 
                                          k = k.samples[[1]][[iter - 1]],
                                          Sigma_G = Tau2.k.samples.array)
-
+  
   for(j in 2:J){
     t.prob[[j]] = prob_exponent_mv_local(pi_samples = pi.samples[[j]][[iter]], 
                                          X_local = t(X.local[[j-1]]), 
@@ -677,30 +677,64 @@ myvalues = c("1" = "#F8766D",
              "8" = "bisque4",
              "9" = "coral4",
              "10" = "darkslateblue")
-###########################################################
-# POPULATION 1 GLOBAL LEVEL CLUSTERING OF GLOBAL VARIABLES
-###########################################################
+#######################################################
+# GLOBAL LEVEL CLUSTERING
+#######################################################
 index <- list()
 for(iter in 2:num_iter){
-  index[[iter]] = k.samples[[1]][[iter]][t.samples[[1]][[iter]]]
+  index[[iter]] = c(k.samples[[1]][[iter]][t.samples[[1]][[iter]]],
+                    k.samples[[2]][[iter]][t.samples[[2]][[iter]]],
+                    k.samples[[3]][[iter]][t.samples[[3]][[iter]]])
 }
 
-samples <- samples.thin
-k1.rand = getDahl(index[samples],
-                  k1.true[t1.true])
 
-best.index = samples[k1.rand$DahlIndex]
+samples <- samples.thin
+k.rand = getDahl(index[samples],
+                 c(k1.true[t1.true],
+                   k2.true[t2.true],
+                   k3.true[t3.true]) 
+)
+
+best.index = samples[k.rand$DahlIndex]
+
+singleton = as.numeric(names(which(table(index[[best.index]]) <= 0.0 * length(index[[best.index]]))))
+
+singleton.index = which(index[[best.index]] %in% singleton)
 
 z.estimated = index[[best.index]]
-cluster.global <- data.frame(x = X.global[[1]][1, ],
-                             y = X.global[[1]][2, ], 
-                             cluster = factor(z.estimated))
+
+cluster.global <- data.frame(x = c(X.global[[1]][1, ],
+                                   X.global[[2]][1, ],
+                                   X.global[[3]][1, ]),
+                             y = c(X.global[[1]][2, ],
+                                   X.global[[2]][2, ],
+                                   X.global[[3]][2, ]),
+                             cluster = factor(z.estimated),
+                             cancer = factor(c(rep("Population 1", length(X.global[[1]][1,])),
+                                               rep("Population 2", length(X.global[[2]][1,])),
+                                               rep("Population 3", length(X.global[[3]][1,])))))
+
+if(length(singleton.index) > 0){
+  z.estimated = z.estimated[-singleton.index_mmclust2]
+  cluster.global = cluster.global[-singleton.index, ]
+}else{
+  z.estimated = z.estimated
+  cluster.global = cluster.global
+}
 
 library(tidyverse)
 
-g1 = cluster.global %>%
-  ggplot(aes(x = x, y = y, col = cluster)) + geom_point(size = 2) + labs(x = "Global variable 1", y = "Global variable 2", title = "Population 1", subtitle = paste0("Adjusted Rand Index = ", round(k1.rand$adj.rand, 4))) + scale_color_manual(values = myvalues) +  xlim(x.limit.lower, x.limit.upper) + ylim(y.limit.lower, y.limit.upper) +
-  theme_classic() +  
+cluster.global$population = factor(c(rep(paste0("Population 1\n", "ARI = ", round(aricode::ARI(cluster.global %>% filter(cancer == "Population 1") %>% pull(cluster),
+                                                                                               k1.true[t1.true]), 3)), length(X.global[[1]][1,])),
+                                     rep(paste0("Population 2\n", "ARI = ", round(aricode::ARI(cluster.global %>% filter(cancer == "Population 2") %>% pull(cluster),
+                                                                                               k2.true[t2.true]), 3)), length(X.global[[2]][1,])),
+                                     rep(paste0("Population 3\n", "ARI = ", round(aricode::ARI(cluster.global %>% filter(cancer == "Population 3") %>% pull(cluster),
+                                                                                               k3.true[t3.true]), 3)), length(X.global[[3]][1,]))))
+
+plot.globalLS <- cluster.global %>%
+  ggplot(aes(x = x, y = y, col = cluster)) + geom_point(size = 3, alpha = 0.8) + facet_wrap(~population, ncol = 1)+ labs(x = "Global variable 1", y = "Global variable 2", title = "Global level clustering")+ 
+  scale_color_manual(values = myvalues) +
+  xlim(x.limit.lower, x.limit.upper) + ylim(y.limit.lower, y.limit.upper) + theme_classic() +  
   theme(
     # LABLES APPEARANCE
     panel.grid.major = element_blank(), 
@@ -720,248 +754,129 @@ g1 = cluster.global %>%
     panel.border = element_rect(colour = "black", fill=NA, size=0.3),
     legend.title=element_text(size=16),
     legend.text=element_text(size=14)
-  )
+  ) 
 
-g1
-
-###########################################################
-# POPULATION 2 GLOBAL LEVEL CLUSTERING OF GLOBAL VARIABLES
-###########################################################
+#######################################################
+# LOCAL LEVEL CLUSTERING
+#######################################################
+##########################################
+# Population 2
+##########################################
 index <- list()
 for(iter in 2:num_iter){
-  index[[iter]] = k.samples[[2]][[iter]][t.samples[[2]][[iter]]]
+  index[[iter]] = c(t.samples[[2]][[iter]])
 }
 
-samples <- samples.thin 
-k2.rand = getDahl(index[samples],
-                  k2.true[t2.true])
-best.index = samples[k2.rand$DahlIndex]
-
-z.estimated = index[[best.index]]
-cluster.global <- data.frame(x = X.global[[2]][1, ],
-                             y = X.global[[2]][2, ], 
-                             cluster = factor(z.estimated))
-
-g2 = cluster.global %>%
-  ggplot(aes(x = x, y = y, col = cluster)) + geom_point(size = 2) + labs(x = "Global variable 1", y = "Global variable 2", title = "Population 2", subtitle = paste0("Adjusted Rand Index = ", round(k2.rand$adj.rand,4))) + scale_color_manual(values = myvalues) +  xlim(x.limit.lower, x.limit.upper) + ylim(y.limit.lower, y.limit.upper) +
-  theme_classic() +  
-  theme(
-    # LABLES APPEARANCE
-    panel.grid.major = element_blank(), 
-    panel.grid.minor = element_blank(),
-    panel.background = element_rect(fill = "transparent",colour = NA),
-    plot.background = element_rect(fill = "transparent",colour = NA),
-    plot.title = element_text(hjust = 0.5, size=20, face= "bold", colour= "black" ),
-    plot.subtitle = element_text(hjust = 0.5, size=16, face= "bold", colour= "black" ),
-    axis.title.x = element_text(size=16, face="bold", colour = "black"),    
-    axis.title.y = element_text(size=16, face="bold", colour = "black"),    
-    axis.text.x = element_text(size=16, face="bold", colour = "black"), 
-    axis.text.y = element_text(size=16, face="bold", colour = "black"),
-    strip.text.x = element_text(size = 14, face="bold", colour = "black" ),
-    strip.text.y = element_text(size = 14, face="bold", colour = "black"),
-    axis.line.x = element_line(color="black", size = 0.3),
-    axis.line.y = element_line(color="black", size = 0.3),
-    panel.border = element_rect(colour = "black", fill=NA, size=0.3),
-    legend.title=element_text(size=16),
-    legend.text=element_text(size=14)
-  )
-
-g2
-
-###########################################################
-# POPULATION 2 LOCAL LEVEL CLUSTERING OF GLOBAL VARIABLES
-###########################################################
-index <- list()
-for(iter in 2:num_iter){
-  index[[iter]] = t.samples[[2]][[iter]]
-}
-
-samples <- samples.thin 
+samples <- samples.thin
 k2.rand = getDahl(index[samples],
                   t2.true)
-k2.rand
 best.index = samples[k2.rand$DahlIndex]
+singleton_2.2 = as.numeric(names(which(table(index[[best.index]]) <= 0.0 * length(index[[best.index]]))))
+singleton.index_2.2 = which(index[[best.index]] %in% singleton_2.2)
+z.estimated_2.2 = index[[best.index]]
 
+cluster.local_2.2 <- data.frame(x = c(X.global[[2]][1, ]),
+                                y = c(X.global[[2]][2, ]), 
+                                cluster = factor(c(z.estimated_2.2)),
+                                cancer = factor(c(rep("Population 2", length(X.global[[2]][1,])))))
 
-z.estimated = index[[best.index]]
-cluster.local <- data.frame(x = X.global[[2]][1, ],
-                            y = X.global[[2]][2, ], 
-                            cluster = factor(z.estimated))
-
-
-# Relabelling the local-level clusters
-charaters <- c("a", "b", "c", "d", "e", "f", "g", "h", "i", "j")
-
-for(l in 1:length(unique(cluster.global$cluster))){
-  cluster.index = as.numeric(as.character(unique(cluster.global$cluster)[l]))
-  A = filter(cluster.global, cluster == cluster.index) 
-  data.index = which(cluster.global$cluster == cluster.index)
-  B = cluster.local[data.index, ]
-  labels.local = cluster.local$cluster[which(cluster.global$cluster == cluster.index)]
-  labels.local.unique =  as.character(unique(cluster.local$cluster[which(cluster.global$cluster == cluster.index)]))
-  if(length(labels.local.unique) > 1){
-    labels.local.update = NULL
-    for(i in 1:length(labels.local.unique)){
-      new.label = paste0(as.character(cluster.index),charaters[i])
-      labels.local.update = c(labels.local.update, new.label)
-    }
-  }else{
-    labels.local.update = as.character(cluster.index)
-  }
-  
-  labels.local = factor(labels.local, labels = labels.local.update)
-  cluster.local$cluster <- as.character(cluster.local$cluster)
-  cluster.local$cluster[data.index] <- as.character(labels.local)
+if(length(singleton.index_2.2) > 0){
+  z.estimated_2.2 = z.estimated_2.2[-singleton.index_2.2]
+  cluster.local_2.2 = cluster.local_2.2[-singleton.index_2.2, ]
+}else{
+  z.estimated_2.2 = z.estimated_2.2
+  cluster.local_2.2 = cluster.local_2.2
 }
 
-cluster.local$cluster <- factor(cluster.local$cluster)
-
-cluster.local$cluster
-
-## Based on the relabelled clusters Manually change the color as:
-myvalues.local2 = c(myvalues, 
-                    "10a" = "lightseagreen",
-                    "10b" = "orange3", 
-                    "8a" = "dodgerblue4",
-                    "8b" = "#AA3377",
-                    "9a" = "bisque",
-                    "9b" = "green3")
-
-l2.1 = cluster.local %>%
-  ggplot(aes(x = x, y = y, col = cluster)) + geom_point(size = 2) + labs(x = "Global variable 1", y = "Global variable 2", title = "Population 2", subtitle = paste0("Adjusted Rand Index = ", round(k2.rand$adj.rand, 4))) + scale_color_manual(values = myvalues.local2) +  xlim(x.limit.lower, x.limit.upper) + ylim(y.limit.lower, y.limit.upper) +
-  theme_classic() +  
-  theme(
-    # LABLES APPEARANCE
-    panel.grid.major = element_blank(), 
-    panel.grid.minor = element_blank(),
-    panel.background = element_rect(fill = "transparent",colour = NA),
-    plot.background = element_rect(fill = "transparent",colour = NA),
-    plot.title = element_text(hjust = 0.5, size=20, face= "bold", colour= "black" ),
-    plot.subtitle = element_text(hjust = 0.5, size=16, face= "bold", colour= "black" ),
-    axis.title.x = element_text(size=16, face="bold", colour = "black"),    
-    axis.title.y = element_text(size=16, face="bold", colour = "black"),    
-    axis.text.x = element_text(size=16, face="bold", colour = "black"), 
-    axis.text.y = element_text(size=16, face="bold", colour = "black"),
-    strip.text.x = element_text(size = 14, face="bold", colour = "black" ),
-    strip.text.y = element_text(size = 14, face="bold", colour = "black"),
-    axis.line.x = element_line(color="black", size = 0.3),
-    axis.line.y = element_line(color="black", size = 0.3),
-    panel.border = element_rect(colour = "black", fill=NA, size=0.3),
-    legend.title=element_text(size=16),
-    legend.text=element_text(size=14)
-  )
-
-l2.1 
-
-#########################################################
-# POPULATION 2 LOCAL LEVEL CLUSTERING OF LOCAL VARIABLES
-#########################################################
-cluster <- data.frame(x = X.local[[1]][1, ],
-                      y = X.local[[1]][2, ], 
-                      cluster = factor(cluster.local$cluster))
-
-ll2 = cluster %>%
-  ggplot(aes(x = x, y = y, col = cluster)) + geom_point(size = 2) + labs(x = "Local variable 1", y = "Local variable 2", title = "Population 2", subtitle = paste0("Adjusted Rand Index = ", round(k2.rand$adj.rand, 4)))  + scale_color_manual(values = myvalues.local2)  +
-  theme_classic() +  
-  theme(
-    # LABLES APPEARANCE
-    panel.grid.major = element_blank(), 
-    panel.grid.minor = element_blank(),
-    panel.background = element_rect(fill = "transparent",colour = NA),
-    plot.background = element_rect(fill = "transparent",colour = NA),
-    plot.title = element_text(hjust = 0.5, size=20, face= "bold", colour= "black" ),
-    plot.subtitle = element_text(hjust = 0.5, size=16, face= "bold", colour= "black" ),
-    axis.title.x = element_text(size=16, face="bold", colour = "black"),    
-    axis.title.y = element_text(size=16, face="bold", colour = "black"),    
-    axis.text.x = element_text(size=16, face="bold", colour = "black"), 
-    axis.text.y = element_text(size=16, face="bold", colour = "black"),
-    strip.text.x = element_text(size = 14, face="bold", colour = "black" ),
-    strip.text.y = element_text(size = 14, face="bold", colour = "black"),
-    axis.line.x = element_line(color="black", size = 0.3),
-    axis.line.y = element_line(color="black", size = 0.3),
-    panel.border = element_rect(colour = "black", fill=NA, size=0.3),
-    legend.title=element_text(size=16),
-    legend.text=element_text(size=14)
-  )
-
-ll2
-
-###########################################################
-# POPULATION 3 GLOBAL LEVEL CLUSTERING OF GLOBAL VARIABLES
-###########################################################
+##########################################
+# Population 3
+##########################################
 index <- list()
 for(iter in 2:num_iter){
-  index[[iter]] = k.samples[[3]][[iter]][t.samples[[3]][[iter]]]
+  index[[iter]] = c(t.samples[[3]][[iter]])
 }
 
-samples <- samples.thin 
-k3.rand = getDahl(index[samples],
-                  k3.true[t3.true])
-
-k3.rand
-best.index = samples[k3.rand$DahlIndex]
-
-z.estimated = index[[best.index]]
-cluster.global <- data.frame(x = X.global[[3]][1, ],
-                             y = X.global[[3]][2, ], 
-                             cluster = factor(z.estimated))
-
-g3 = cluster.global %>%
-  ggplot(aes(x = x, y = y, col = cluster)) + geom_point(size = 2) + labs(x = "Global variable 1", y = "Global variable 2", title = "Population 3", subtitle = paste0("Adjusted Rand Index = ", round(k3.rand$adj.rand, 4))) + scale_color_manual(values = myvalues) +  xlim(x.limit.lower, x.limit.upper) + ylim(y.limit.lower, y.limit.upper) +
-  theme_classic() +  
-  theme(
-    # LABLES APPEARANCE
-    panel.grid.major = element_blank(), 
-    panel.grid.minor = element_blank(),
-    panel.background = element_rect(fill = "transparent",colour = NA),
-    plot.background = element_rect(fill = "transparent",colour = NA),
-    plot.title = element_text(hjust = 0.5, size=20, face= "bold", colour= "black" ),
-    plot.subtitle = element_text(hjust = 0.5, size=16, face= "bold", colour= "black" ),
-    axis.title.x = element_text(size=16, face="bold", colour = "black"),    
-    axis.title.y = element_text(size=16, face="bold", colour = "black"),    
-    axis.text.x = element_text(size=16, face="bold", colour = "black"), 
-    axis.text.y = element_text(size=16, face="bold", colour = "black"),
-    strip.text.x = element_text(size = 14, face="bold", colour = "black" ),
-    strip.text.y = element_text(size = 14, face="bold", colour = "black"),
-    axis.line.x = element_line(color="black", size = 0.3),
-    axis.line.y = element_line(color="black", size = 0.3),
-    panel.border = element_rect(colour = "black", fill=NA, size=0.3),
-    legend.title=element_text(size=16),
-    legend.text=element_text(size=14)
-  )
-
-g3
-
-#########################################################
-# POPULATION 3 LOCAL LEVEL CLUSTERING OF GLOBAL VARIABLES
-#########################################################
-index <- list()
-for(iter in 2:num_iter){
-  index[[iter]] = t.samples[[3]][[iter]]
-}
-
-samples <- samples.thin 
+samples <- samples.thin
 k3.rand = getDahl(index[samples],
                   t3.true)
-k3.rand
+
 best.index = samples[k3.rand$DahlIndex]
+singleton_2.3 = as.numeric(names(which(table(index[[best.index]]) <= 0.0 * length(index[[best.index]]))))
+singleton.index_2.3 = which(index[[best.index]] %in% singleton_2.3)
+z.estimated_2.3 = index[[best.index]]
+
+cluster.local_2.3 <- data.frame(x = c(X.global[[3]][1, ]),
+                                y = c(X.global[[3]][2, ]), 
+                                cluster = factor(c(z.estimated_2.3)),
+                                cancer = factor(c(rep("Population 3", length(X.global[[3]][1,])))))
+
+if(length(singleton.index_2.3) > 0){
+  z.estimated_2.3 = z.estimated_2.3[-singleton.index_2.3]
+  cluster.local_2.3 = cluster.local_2.3[-singleton.index_2.3, ]
+}else{
+  z.estimated_2.3 = z.estimated_2.3
+  cluster.local_2.3 = cluster.local_2.3
+}
+
+cluster.local = bind_rows(cluster.local_2.2, cluster.local_2.3)
+
+cluster.local$population = factor(c(rep(paste0("Population 2\n", "ARI = ", round(aricode::ARI(cluster.local %>% filter(cancer == "Population 2") %>% pull(cluster),
+                                                                                              t2.true), 3)), length(X.global[[2]][1,])),
+                                    rep(paste0("Population 3\n", "ARI = ", round(aricode::ARI(cluster.local %>% filter(cancer == "Population 3") %>% pull(cluster),
+                                                                                              t3.true), 3)), length(X.global[[3]][1,]))))
+
+cluster.local %>%
+  ggplot(aes(x = x, y = y, col = cluster)) + geom_point(size = 3) + facet_wrap(~population)+ labs(x = "Global variable 1", y = "Global variable 2", title = "Local level clustering") + 
+  scale_color_manual(values = myvalues) +
+  xlim(x.limit.lower, x.limit.upper) + ylim(y.limit.lower, y.limit.upper) + theme_classic() +  
+  theme(
+    # LABLES APPEARANCE
+    panel.grid.major = element_blank(), 
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "transparent",colour = NA),
+    plot.background = element_rect(fill = "transparent",colour = NA),
+    plot.title = element_text(hjust = 0.5, size=20, face= "bold", colour= "black" ),
+    plot.subtitle = element_text(hjust = 0.5, size=16, face= "bold", colour= "black" ),
+    axis.title.x = element_text(size=16, face="bold", colour = "black"),    
+    axis.title.y = element_text(size=16, face="bold", colour = "black"),    
+    axis.text.x = element_text(size=16, face="bold", colour = "black"), 
+    axis.text.y = element_text(size=16, face="bold", colour = "black"),
+    strip.text.x = element_text(size = 14, face="bold", colour = "black" ),
+    strip.text.y = element_text(size = 14, face="bold", colour = "black"),
+    axis.line.x = element_line(color="black", size = 0.3),
+    axis.line.y = element_line(color="black", size = 0.3),
+    panel.border = element_rect(colour = "black", fill=NA, size=0.3),
+    legend.title=element_text(size=16),
+    legend.text=element_text(size=14)
+  ) 
 
 
-z.estimated = index[[best.index]]
-cluster.local <- data.frame(x = X.global[[3]][1, ],
-                            y = X.global[[3]][2, ], 
-                            cluster = factor(z.estimated))
+#################################################
+# RELABELLING LOCAL CLUSTERS 
+#################################################
+#################################################
+# POPULATION 2
+#################################################
+cluster.global.LS.pop2 = cluster.global %>% filter(cancer == "Population 2") 
+cluster.local.LS.pop2 = cluster.local %>% filter(cancer == "Population 2") 
+cluster.local.LS.pop2$cluster_org = cluster.local.LS.pop2$cluster
 
-# Relabelling the local clusters
 charaters <- c("a", "b", "c", "d", "e", "f", "g", "h", "i", "j")
 
-for(l in 1:length(unique(cluster.global$cluster))){
-  cluster.index = as.numeric(as.character(unique(cluster.global$cluster)[l]))
-  A = filter(cluster.global, cluster == cluster.index) 
-  data.index = which(cluster.global$cluster == cluster.index)
-  B = cluster.local[data.index, ]
-  labels.local = cluster.local$cluster[which(cluster.global$cluster == cluster.index)]
-  labels.local.unique =  as.character(unique(cluster.local$cluster[which(cluster.global$cluster == cluster.index)]))
+for(l in 1:length(unique(cluster.global.LS.pop2$cluster))){
+  if(length(singleton.index_2.2) > 0){
+    cluster.global.LS.pop2.subset = cluster.global.LS.pop2$cluster[-singleton.index_2.2]
+  }else{
+    cluster.global.LS.pop2.subset = cluster.global.LS.pop2$cluster
+  }
+  
+  cluster.index = as.numeric(as.character(unique(cluster.global.LS.pop2.subset)[l]))
+  
+  data.index = which(cluster.global.LS.pop2.subset == cluster.index)
+  
+  labels.local = cluster.local.LS.pop2$cluster[which(cluster.global.LS.pop2.subset == cluster.index)]
+  labels.local.unique =  as.character(unique(cluster.local.LS.pop2$cluster[which(cluster.global.LS.pop2.subset == cluster.index)]))
+  
   if(length(labels.local.unique) > 1){
     labels.local.update = NULL
     for(i in 1:length(labels.local.unique)){
@@ -973,23 +888,99 @@ for(l in 1:length(unique(cluster.global$cluster))){
   }
   
   labels.local = factor(labels.local, labels = labels.local.update)
-  cluster.local$cluster <- as.character(cluster.local$cluster)
-  cluster.local$cluster[data.index] <- as.character(labels.local)
+  cluster.local.LS.pop2$cluster <- as.character(cluster.local.LS.pop2$cluster)
+  cluster.local.LS.pop2$cluster[data.index] <- as.character(labels.local)
 }
 
-cluster.local$cluster <- factor(cluster.local$cluster)
+cluster.local.LS.pop2$cluster <- factor(cluster.local.LS.pop2$cluster)
 
-cluster.local$cluster
+cluster.local.LS.pop2$cluster
 
-## Based on the relabelled clusters Manually change the color as:
-myvalues.local3 = c(myvalues, 
-                    "1a" = "red4",
-                    "1b" = "bisque", 
-                    "1c" = "green3")
+myvalues_local.LS2 = c("1" = "#F8766D",
+                       "2" = "#00BA38",
+                       "3" = "#619CFF", 
+                       "4" = "blueviolet",
+                       "5" = "cyan4",
+                       "6" = "#E6AB02",
+                       "7" = "#E36EF6",
+                       "8" = "bisque4",
+                       "9" = "coral4",
+                       "10" = "darkslateblue",
+                       
+                       "5a" = "lightseagreen",
+                       "5b" = "yellow3",
+                       "5c" = "bisque",
+                       
+                       "9a" = "hotpink3",
+                       "9b" = "sienna2",
+                       "9c" = "dodgerblue4",
+                       "9d" = "dodgerblue")
 
-l3.1 = cluster.local %>%
-  ggplot(aes(x = x, y = y, col = cluster)) + geom_point(size = 2) + labs(x = "Global variable 1", y = "Global variable 2", title = "Population 3", subtitle = paste0("Adjusted Rand Index = ", round(k3.rand$adj.rand, 4))) + scale_color_manual(values = myvalues.local3) +  xlim(x.limit.lower, x.limit.upper) + ylim(y.limit.lower, y.limit.upper) +
-  theme_classic() +  
+#################################################
+# POPULATION 3
+#################################################
+cluster.global.LS.pop3 = cluster.global %>% filter(cancer == "Population 3") 
+cluster.local.LS.pop3 = cluster.local %>% filter(cancer == "Population 3") 
+cluster.local.LS.pop3$cluster_org = cluster.local.LS.pop3$cluster
+
+charaters <- c("a", "b", "c", "d", "e", "f", "g", "h", "i", "j")
+
+for(l in 1:length(unique(cluster.global.LS.pop3$cluster))){
+  if(length(singleton.index_2.3) > 0){
+    cluster.global.LS.pop3.subset = cluster.global.LS.pop3$cluster[-singleton.index_2.3]
+  }else{
+    cluster.global.LS.pop3.subset = cluster.global.LS.pop3$cluster
+  }
+  
+  cluster.index = as.numeric(as.character(unique(cluster.global.LS.pop3.subset)[l]))
+  
+  data.index = which(cluster.global.LS.pop3.subset == cluster.index)
+  
+  labels.local = cluster.local.LS.pop3$cluster[which(cluster.global.LS.pop3.subset == cluster.index)]
+  labels.local.unique =  as.character(unique(cluster.local.LS.pop3$cluster[which(cluster.global.LS.pop3.subset == cluster.index)]))
+  
+  if(length(labels.local.unique) > 1){
+    labels.local.update = NULL
+    for(i in 1:length(labels.local.unique)){
+      new.label = paste0(as.character(cluster.index),charaters[i])
+      labels.local.update = c(labels.local.update, new.label)
+    }
+  }else{
+    labels.local.update = as.character(cluster.index)
+  }
+  
+  labels.local = factor(labels.local, labels = labels.local.update)
+  cluster.local.LS.pop3$cluster <- as.character(cluster.local.LS.pop3$cluster)
+  cluster.local.LS.pop3$cluster[data.index] <- as.character(labels.local)
+}
+
+cluster.local.LS.pop3$cluster <- factor(cluster.local.LS.pop3$cluster)
+
+cluster.local.LS.pop3$cluster
+
+myvalues_local.LS3 = c("1" = "#F8766D",
+                       "2" = "#00BA38",
+                       "3" = "#619CFF", 
+                       "4" = "blueviolet",
+                       "5" = "cyan4",
+                       "6" = "#E6AB02",
+                       "7" = "#E36EF6",
+                       "8" = "bisque4",
+                       "9" = "coral4",
+                       "10" = "darkslateblue",
+                       
+                       "5a" = "lightseagreen",
+                       "5b" = "yellow3",
+                       "5c" = "bisque")
+
+cluster.local.LS.combined = bind_rows(cluster.local.LS.pop2,
+                                      cluster.local.LS.pop3)
+
+cluster.local.LS.combined$cluster
+myvalues_local.LS.combined = c(myvalues_local.LS2, myvalues_local.LS3)
+
+plot.localLS <- cluster.local.LS.combined %>%
+  ggplot(aes(x = x, y = y, col = cluster)) + geom_point(size = 3, alpha = 0.8) + facet_wrap(~population, ncol = 1)+ labs(x = "Global variable 1", y = "Global variable 2", title = "Local level clustering") +  scale_color_manual(values = myvalues_local.LS.combined) +  xlim(x.limit.lower, x.limit.upper) + ylim(y.limit.lower, y.limit.upper) + theme_classic() +  
   theme(
     # LABLES APPEARANCE
     panel.grid.major = element_blank(), 
@@ -1009,67 +1000,92 @@ l3.1 = cluster.local %>%
     panel.border = element_rect(colour = "black", fill=NA, size=0.3),
     legend.title=element_text(size=16),
     legend.text=element_text(size=14)
-  )
+  ) 
 
-l3.1 
-#########################################################
-# POPULATION 3 LOCAL LEVEL CLUSTERING OF LOCAL VARIABLES
-#########################################################
-ll3.1 = data.frame(x = X.local[[2]][1,], y = X.local[[2]][2, ], cluster = factor(cluster.local$cluster)) %>%
-  ggplot(aes(x = x, y = y, col = cluster)) + geom_point(size = 2) + labs(x = "Local variable 1", y = "Local variable 2", title = "Population 3", subtitle = paste0("Adjusted Rand Index = ", round(k3.rand$adj.rand, 4)))  + scale_color_manual(values = myvalues.local3)  +
-  theme_classic() +  
-  theme(
-    # LABLES APPEARANCE
-    panel.grid.major = element_blank(), 
-    panel.grid.minor = element_blank(),
-    panel.background = element_rect(fill = "transparent",colour = NA),
-    plot.background = element_rect(fill = "transparent",colour = NA),
-    plot.title = element_text(hjust = 0.5, size=20, face= "bold", colour= "black" ),
-    plot.subtitle = element_text(hjust = 0.5, size=16, face= "bold", colour= "black" ),
-    axis.title.x = element_text(size=16, face="bold", colour = "black"),    
-    axis.title.y = element_text(size=16, face="bold", colour = "black"),    
-    axis.text.x = element_text(size=16, face="bold", colour = "black"), 
-    axis.text.y = element_text(size=16, face="bold", colour = "black"),
-    strip.text.x = element_text(size = 14, face="bold", colour = "black" ),
-    strip.text.y = element_text(size = 14, face="bold", colour = "black"),
-    axis.line.x = element_line(color="black", size = 0.3),
-    axis.line.y = element_line(color="black", size = 0.3),
-    panel.border = element_rect(colour = "black", fill=NA, size=0.3),
-    legend.title=element_text(size=16),
-    legend.text=element_text(size=14)
-  )
-
-ll3.2 = data.frame(x = X.local[[2]][2,], y = X.local[[2]][3, ], cluster = factor(cluster.local$cluster)) %>%
-  ggplot(aes(x = x, y = y, col = cluster)) + geom_point(size = 2) + labs(x = "Local variable 2", y = "Local variable 3", title = "Population 3", subtitle = paste0("Adjusted Rand Index = ", round(k3.rand$adj.rand, 4)))  + scale_color_manual(values = myvalues.local3)  +
-  theme_classic() +  
-  theme(
-    # LABLES APPEARANCE
-    panel.grid.major = element_blank(), 
-    panel.grid.minor = element_blank(),
-    panel.background = element_rect(fill = "transparent",colour = NA),
-    plot.background = element_rect(fill = "transparent",colour = NA),
-    plot.title = element_text(hjust = 0.5, size=20, face= "bold", colour= "black" ),
-    plot.subtitle = element_text(hjust = 0.5, size=16, face= "bold", colour= "black" ),
-    axis.title.x = element_text(size=16, face="bold", colour = "black"),    
-    axis.title.y = element_text(size=16, face="bold", colour = "black"),    
-    axis.text.x = element_text(size=16, face="bold", colour = "black"), 
-    axis.text.y = element_text(size=16, face="bold", colour = "black"),
-    strip.text.x = element_text(size = 14, face="bold", colour = "black" ),
-    strip.text.y = element_text(size = 14, face="bold", colour = "black"),
-    axis.line.x = element_line(color="black", size = 0.3),
-    axis.line.y = element_line(color="black", size = 0.3),
-    panel.border = element_rect(colour = "black", fill=NA, size=0.3),
-    legend.title=element_text(size=16),
-    legend.text=element_text(size=14)
-  )
 
 if(!require("gridExtra")) install.packages("gridExtra"); library(gridExtra)
 if(!require("grid")) install.packages("grid"); library(grid)
+gridExtra::grid.arrange(plot.globalLS, plot.localLS, ncol = 2)
 
-plot1 = gridExtra::grid.arrange(g1, g2, g3, top = textGrob("Global level Clustering", gp = gpar(fontface = "bold", fontsize = 20)))
+#########################################################
+# LOCAL LEVEL CLUSTERING OF LOCAL VARIABLES
+#########################################################
+##########################################
+# POPULATION 2
+##########################################
+ll2 = data.frame(x = X.local[[1]][1, ], y = X.local[[1]][2, ], cluster = factor(cluster.local.LS.combined %>% filter(cancer == "Population 2") %>% pull(cluster))) %>% 
+  ggplot(aes(x = x, y = y, col = cluster)) + geom_point(size = 3, alpha = 0.8) + labs(x = "Local variable 1", y = "Local variable 2", title = "Population 2", subtitle = paste0("ARI = ", round(k2.rand$adj.rand, 4)))  + scale_color_manual(values = myvalues_local.LS.combined)  +
+  theme_classic() +  
+  theme(
+    # LABLES APPEARANCE
+    panel.grid.major = element_blank(), 
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "transparent",colour = NA),
+    plot.background = element_rect(fill = "transparent",colour = NA),
+    plot.title = element_text(hjust = 0.5, size=20, face= "bold", colour= "black" ),
+    plot.subtitle = element_text(hjust = 0.5, size=16, face= "bold", colour= "black" ),
+    axis.title.x = element_text(size=16, face="bold", colour = "black"),    
+    axis.title.y = element_text(size=16, face="bold", colour = "black"),    
+    axis.text.x = element_text(size=16, face="bold", colour = "black"), 
+    axis.text.y = element_text(size=16, face="bold", colour = "black"),
+    strip.text.x = element_text(size = 14, face="bold", colour = "black" ),
+    strip.text.y = element_text(size = 14, face="bold", colour = "black"),
+    axis.line.x = element_line(color="black", size = 0.3),
+    axis.line.y = element_line(color="black", size = 0.3),
+    panel.border = element_rect(colour = "black", fill=NA, size=0.3),
+    legend.title=element_text(size=16),
+    legend.text=element_text(size=14)
+  )
 
-plot2 = gridExtra::grid.arrange(l2.1, l3.1, top = textGrob("Local level Clustering", gp = gpar(fontface = "bold", fontsize = 20)))
+##########################################
+# POPULATION 3
+##########################################
+ll3.1 = data.frame(x = X.local[[2]][1, ], y = X.local[[2]][2, ], cluster = factor(cluster.local.LS.combined %>% filter(cancer == "Population 3") %>% pull(cluster))) %>% 
+  ggplot(aes(x = x, y = y, col = cluster)) + geom_point(size = 3, alpha = 0.8) + labs(x = "Local variable 1", y = "Local variable 2", title = "Population 3", subtitle = paste0("ARI = ", round(k3.rand$adj.rand, 4)))  + scale_color_manual(values = myvalues_local.LS.combined)  +
+  theme_classic() +  
+  theme(
+    # LABLES APPEARANCE
+    panel.grid.major = element_blank(), 
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "transparent",colour = NA),
+    plot.background = element_rect(fill = "transparent",colour = NA),
+    plot.title = element_text(hjust = 0.5, size=20, face= "bold", colour= "black" ),
+    plot.subtitle = element_text(hjust = 0.5, size=16, face= "bold", colour= "black" ),
+    axis.title.x = element_text(size=16, face="bold", colour = "black"),    
+    axis.title.y = element_text(size=16, face="bold", colour = "black"),    
+    axis.text.x = element_text(size=16, face="bold", colour = "black"), 
+    axis.text.y = element_text(size=16, face="bold", colour = "black"),
+    strip.text.x = element_text(size = 14, face="bold", colour = "black" ),
+    strip.text.y = element_text(size = 14, face="bold", colour = "black"),
+    axis.line.x = element_line(color="black", size = 0.3),
+    axis.line.y = element_line(color="black", size = 0.3),
+    panel.border = element_rect(colour = "black", fill=NA, size=0.3),
+    legend.title=element_text(size=16),
+    legend.text=element_text(size=14)
+  ) 
 
-gridExtra::grid.arrange(plot1, plot2, ncol = 2)
+ll3.2 = data.frame(x = X.local[[2]][2, ], y = X.local[[2]][3, ], cluster = factor(cluster.local.LS.combined %>% filter(cancer == "Population 3") %>% pull(cluster))) %>% 
+  ggplot(aes(x = x, y = y, col = cluster)) + geom_point(size = 3, alpha = 0.8) + labs(x = "Local variable 2", y = "Local variable 3", title = "Population 3", subtitle = paste0("ARI = ", round(k3.rand$adj.rand, 4)))  + scale_color_manual(values = myvalues_local.LS.combined)  +
+  theme_classic() +  
+  theme(
+    # LABLES APPEARANCE
+    panel.grid.major = element_blank(), 
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "transparent",colour = NA),
+    plot.background = element_rect(fill = "transparent",colour = NA),
+    plot.title = element_text(hjust = 0.5, size=20, face= "bold", colour= "black" ),
+    plot.subtitle = element_text(hjust = 0.5, size=16, face= "bold", colour= "black" ),
+    axis.title.x = element_text(size=16, face="bold", colour = "black"),    
+    axis.title.y = element_text(size=16, face="bold", colour = "black"),    
+    axis.text.x = element_text(size=16, face="bold", colour = "black"), 
+    axis.text.y = element_text(size=16, face="bold", colour = "black"),
+    strip.text.x = element_text(size = 14, face="bold", colour = "black" ),
+    strip.text.y = element_text(size = 14, face="bold", colour = "black"),
+    axis.line.x = element_line(color="black", size = 0.3),
+    axis.line.y = element_line(color="black", size = 0.3),
+    panel.border = element_rect(colour = "black", fill=NA, size=0.3),
+    legend.title=element_text(size=16),
+    legend.text=element_text(size=14)
+  ) 
+gridExtra::grid.arrange(ll2, ll3.1, ll3.2, ncol = 3)
 
-gridExtra::grid.arrange(ll2, ll3.1, ll3.2)
