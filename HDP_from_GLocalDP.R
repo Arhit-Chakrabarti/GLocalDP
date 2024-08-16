@@ -562,26 +562,65 @@ myvalues = c("1" = "#F8766D",
              "8" = "bisque4",
              "9" = "coral4",
              "10" = "darkslateblue")
-###########################################################
-# POPULATION 1 GLOBAL LEVEL CLUSTERING OF GLOBAL VARIABLES
-###########################################################
+
+#######################################################
+# GLOBAL LEVEL CLUSTERING (HDP)
+#######################################################
 index <- list()
 for(iter in 2:num_iter){
-  index[[iter]] = k.samples.HDP[[1]][[iter]][t.samples.HDP[[1]][[iter]]]
+  index[[iter]] = c(k.samples.HDP[[1]][[iter]][t.samples.HDP[[1]][[iter]]],
+                    k.samples.HDP[[2]][[iter]][t.samples.HDP[[2]][[iter]]],
+                    k.samples.HDP[[3]][[iter]][t.samples.HDP[[3]][[iter]]])
 }
 
-samples <- samples.thin
-k1.rand = getDahl(index[samples],
-                  k1.true[t1.true])
 
-k1.rand
-best.index = samples[k1.rand$DahlIndex]
+samples <- samples.thin
+k.rand = getDahl(index[samples],
+                 c(k1.true[t1.true],
+                   k2.true[t2.true],
+                   k3.true[t3.true]) 
+)
+
+best.index = samples[k.rand$DahlIndex]
+
+singleton = as.numeric(names(which(table(index[[best.index]]) <= 0.0 * length(index[[best.index]]))))
+
+singleton.index = which(index[[best.index]] %in% singleton)
+
+z.estimated.HDP = index[[best.index]]
+
+cluster.global.HDP <- data.frame(x = c(X.global[[1]][1, ],
+                                       X.global[[2]][1, ],
+                                       X.global[[3]][1, ]),
+                                 y = c(X.global[[1]][2, ],
+                                       X.global[[2]][2, ],
+                                       X.global[[3]][2, ]),
+                                 cluster = factor(z.estimated.HDP),
+                                 cancer = factor(c(rep("Population 1", length(X.global[[1]][1,])),
+                                                   rep("Population 2", length(X.global[[2]][1,])),
+                                                   rep("Population 3", length(X.global[[3]][1,])))))
+
+if(length(singleton.index) > 0){
+  z.estimated.HDP = z.estimated.HDP[-singleton.index_mmclust2]
+  cluster.global.HDP = cluster.global.HDP[-singleton.index, ]
+}else{
+  z.estimated.HDP = z.estimated.HDP
+  cluster.global.HDP = cluster.global.HDP
+}
 
 library(tidyverse)
 
-g1 = data.frame(x = X.global[[1]][1,], y = X.global[[1]][2,], cluster = factor(index[[best.index]])) %>%
-  ggplot(aes(x = x, y = y, col = cluster)) + geom_point() + labs(x = "Gobal variable 1", y = "Global variable 2", title = "Population 1", subtitle = paste0("Adjusted Rand Index = ", round(k1.rand$adj.rand, 4))) + scale_color_manual(values = myvalues) +  xlim(x.limit.lower, x.limit.upper) + ylim(y.limit.lower, y.limit.upper) +
-  theme_classic() +  
+cluster.global.HDP$population = factor(c(rep(paste0("Population 1\n", "ARI = ", round(aricode::ARI(cluster.global.HDP %>% filter(cancer == "Population 1") %>% pull(cluster),
+                                                                                                   k1.true[t1.true]), 3)), length(X.global[[1]][1,])),
+                                         rep(paste0("Population 2\n", "ARI = ", round(aricode::ARI(cluster.global.HDP %>% filter(cancer == "Population 2") %>% pull(cluster),
+                                                                                                   k2.true[t2.true]), 3)), length(X.global[[2]][1,])),
+                                         rep(paste0("Population 3\n", "ARI = ", round(aricode::ARI(cluster.global.HDP %>% filter(cancer == "Population 3") %>% pull(cluster),
+                                                                                                   k3.true[t3.true]), 3)), length(X.global[[3]][1,]))))
+
+plot.globalLS.HDP <- cluster.global.HDP %>%
+  ggplot(aes(x = x, y = y, col = cluster)) + geom_point(size = 3, alpha = 0.8) + facet_wrap(~population, nrow = 1)+ labs(x = "Global variable 1", y = "Global variable 2", title = "")+ 
+  scale_color_manual(values = myvalues) +
+  xlim(x.limit.lower, x.limit.upper) + ylim(y.limit.lower, y.limit.upper) + theme_classic() +  
   theme(
     # LABLES APPEARANCE
     panel.grid.major = element_blank(), 
@@ -601,89 +640,4 @@ g1 = data.frame(x = X.global[[1]][1,], y = X.global[[1]][2,], cluster = factor(i
     panel.border = element_rect(colour = "black", fill=NA, size=0.3),
     legend.title=element_text(size=16),
     legend.text=element_text(size=14)
-  )
-
-g1
-###########################################################
-# POPULATION 2 GLOBAL LEVEL CLUSTERING OF GLOBAL VARIABLES
-###########################################################
-index <- list()
-for(iter in 2:num_iter){
-  index[[iter]] = k.samples.HDP[[2]][[iter]][t.samples.HDP[[2]][[iter]]]
-}
-
-samples <- samples.thin 
-k2.rand = getDahl(index[samples],
-                  k2.true[t2.true])
-k2.rand
-best.index = samples[k2.rand$DahlIndex]
-
-g2 = data.frame(x = X.global[[2]][1,], y = X.global[[2]][2,], cluster = factor(index[[best.index]])) %>%
-  ggplot(aes(x = x, y = y, col = cluster)) + geom_point() + labs(x = "Gobal variable 1", y = "Global variable 2", title = "Population 2", subtitle = paste0("Adjusted Rand Index = ", round(k2.rand$adj.rand,4))) + scale_color_manual(values = myvalues) +  xlim(x.limit.lower, x.limit.upper) + ylim(y.limit.lower, y.limit.upper)  +
-  theme_classic() +  
-  theme(
-    # LABLES APPEARANCE
-    panel.grid.major = element_blank(), 
-    panel.grid.minor = element_blank(),
-    panel.background = element_rect(fill = "transparent",colour = NA),
-    plot.background = element_rect(fill = "transparent",colour = NA),
-    plot.title = element_text(hjust = 0.5, size=20, face= "bold", colour= "black" ),
-    plot.subtitle = element_text(hjust = 0.5, size=16, face= "bold", colour= "black" ),
-    axis.title.x = element_text(size=16, face="bold", colour = "black"),    
-    axis.title.y = element_text(size=16, face="bold", colour = "black"),    
-    axis.text.x = element_text(size=16, face="bold", colour = "black"), 
-    axis.text.y = element_text(size=16, face="bold", colour = "black"),
-    strip.text.x = element_text(size = 14, face="bold", colour = "black" ),
-    strip.text.y = element_text(size = 14, face="bold", colour = "black"),
-    axis.line.x = element_line(color="black", size = 0.3),
-    axis.line.y = element_line(color="black", size = 0.3),
-    panel.border = element_rect(colour = "black", fill=NA, size=0.3),
-    legend.title=element_text(size=16),
-    legend.text=element_text(size=14)
-  )
-
-g2
-###########################################################
-# POPULATION 3 GLOBAL LEVEL CLUSTERING OF GLOBAL VARIABLES
-###########################################################
-index <- list()
-for(iter in 2:num_iter){
-  index[[iter]] = k.samples.HDP[[3]][[iter]][t.samples.HDP[[3]][[iter]]]
-}
-
-samples <- samples.thin 
-k3.rand = getDahl(index[samples],
-                  k3.true[t3.true])
-
-k3.rand
-best.index = samples[k3.rand$DahlIndex]
-
-g3 = data.frame(x = X.global[[3]][1,], y = X.global[[3]][2,], cluster = factor(index[[best.index]])) %>%
-  ggplot(aes(x = x, y = y, col = cluster)) + geom_point() + labs(x = "Gobal variable 1", y = "Global variable 2", title = "Population 3", subtitle = paste0("Adjusted Rand Index = ", round(k3.rand$adj.rand, 4))) + scale_color_manual(values = myvalues) +  xlim(x.limit.lower, x.limit.upper) + ylim(y.limit.lower, y.limit.upper) +
-  theme_classic() +  
-  theme(
-    # LABLES APPEARANCE
-    panel.grid.major = element_blank(), 
-    panel.grid.minor = element_blank(),
-    panel.background = element_rect(fill = "transparent",colour = NA),
-    plot.background = element_rect(fill = "transparent",colour = NA),
-    plot.title = element_text(hjust = 0.5, size=20, face= "bold", colour= "black" ),
-    plot.subtitle = element_text(hjust = 0.5, size=16, face= "bold", colour= "black" ),
-    axis.title.x = element_text(size=16, face="bold", colour = "black"),    
-    axis.title.y = element_text(size=16, face="bold", colour = "black"),    
-    axis.text.x = element_text(size=16, face="bold", colour = "black"), 
-    axis.text.y = element_text(size=16, face="bold", colour = "black"),
-    strip.text.x = element_text(size = 14, face="bold", colour = "black" ),
-    strip.text.y = element_text(size = 14, face="bold", colour = "black"),
-    axis.line.x = element_line(color="black", size = 0.3),
-    axis.line.y = element_line(color="black", size = 0.3),
-    panel.border = element_rect(colour = "black", fill=NA, size=0.3),
-    legend.title=element_text(size=16),
-    legend.text=element_text(size=14)
-  )
-
-g3
-if(!require("gridExtra")) install.packages("gridExtra"); library(gridExtra)
-if(!require("grid")) install.packages("grid"); library(grid)
-
-plot.HDP = gridExtra::grid.arrange(g1, g2, g3, ncol = 3, top = textGrob("HDP", gp = gpar(fontface = "bold", fontsize = 20)))
+  ) 
